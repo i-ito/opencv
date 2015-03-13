@@ -1043,7 +1043,8 @@ void FlannBasedMatcher::clear()
 
 void FlannBasedMatcher::train()
 {
-    if( !flannIndex || mergedDescriptors.size() < addedDescCount )
+    int trained = mergedDescriptors.size();
+    if( !flannIndex || trained < addedDescCount )
     {
         // FIXIT: Workaround for 'utrainDescCollection' issue (PR #2142)
         if (!utrainDescCollection.empty())
@@ -1053,7 +1054,16 @@ void FlannBasedMatcher::train()
                 trainDescCollection.push_back(utrainDescCollection[i].getMat(ACCESS_READ));
         }
         mergedDescriptors.set( trainDescCollection );
-        flannIndex = makePtr<flann::Index>( mergedDescriptors.getDescriptors(), *indexParams );
+
+        //  construct flannIndex class, if empty or Algorithm not equal FLANN_INDEX_LSH
+        if( !flannIndex || flannIndex->getAlgorithm() != cvflann::FLANN_INDEX_LSH)
+        {
+            flannIndex = makePtr<flann::Index>( mergedDescriptors.getDescriptors(), *indexParams );
+        }
+        else
+        {
+            flannIndex->build(mergedDescriptors.getDescriptors(), mergedDescriptors.getDescriptors().rowRange(trained, mergedDescriptors.size()), *indexParams, cvflann::FLANN_DIST_HAMMING);
+        }
     }
 }
 
@@ -1289,6 +1299,7 @@ void FlannBasedMatcher::convertToDMatches( const DescriptorCollection& collectio
             }
         }
     }
+
 }
 
 void FlannBasedMatcher::knnMatchImpl( InputArray _queryDescriptors, std::vector<std::vector<DMatch> >& matches, int knn,
